@@ -26,29 +26,35 @@
 -behaviour(gen_server).
 
 %% API
--export([start_link/1]).
+-export([start_link/2]).
 -export([server_name/1]).
 
 %% gen_server callbacks
--export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
+-export([
+         init/1,
+         handle_call/3,
+         handle_cast/2,
+         handle_info/2,
+         terminate/2,
+         code_change/3
+        ]).
 
 -include_lib("yolf/include/yolf.hrl").
 
 %%% API
-start_link(Proj) ->
-    Server = server_name(Proj),
+start_link(Server, State) ->
     ?LOG_WORKER(Server),
-    gen_server:start_link({local, Server}, ?MODULE, [Server, Proj], []).
+    gen_server:start_link({local, Server}, ?MODULE, [Server, State], []).
 
-server_name(Proj) ->
+server_name(Name) ->
     Module = atom_to_binary(?MODULE, utf8),
-    Binary = atom_to_binary(Proj, utf8),
+    Binary = atom_to_binary(Name, utf8),
     binary_to_atom(<<Module/binary, <<"$">>/binary, Binary/binary>>, utf8).
 
 %%% gen_server callbacks
-init([Server, Proj]) ->
+init([Server, State]) ->
     ?LOG_WORKER_INIT(Server),
-    {ok, Proj}.
+    {ok, State}.
 
 handle_call(_, _From, State) ->
     {reply, ok, State}.

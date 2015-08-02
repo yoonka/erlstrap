@@ -29,7 +29,7 @@
 -export([start_link/0]).
 
 %% Supervisor callbacks
--export([init/1, add/1, delete/1]).
+-export([init/1, add/2]).
 
 -include_lib("yolf/include/yolf.hrl").
 
@@ -37,41 +37,28 @@
 
 start_link() ->
     ?LOG_SUPERVISOR(?SERVER),
-    Ret = supervisor:start_link({local, ?SERVER}, ?MODULE, []),
-    add_projects([]),
-    Ret.
+    supervisor:start_link({local, ?SERVER}, ?MODULE, []).
 
 init([]) ->
     ?LOG_SUPERVISOR_INIT(?SERVER),
     Child = ?WORKER(estp_project),
     {ok, {{simple_one_for_one, 3, 30}, [Child]}}.
 
-add(Proj) ->
-    Server = estp_project:server_name(Proj),
-    add_if_nonexistent(Server, whereis(Server)).
+add(Name, Cfg) ->
+    Server = estp_project:server_name(Name),
+    State = [{name, Name}|Cfg],
+    case whereis(Server) of
+        undefined ->
+            add_child(Server, State);
+        Pid ->
+            delete_child(Server, Pid),
+            add_child(Server, State)
+    end.
 
-add_if_nonexistent(Server, undefined) ->
+add_child(Server, State) ->
     lager:info(<<" == estp_proj_sup: add child:~p">>, [Server]),
-    supervisor:start_child(?SERVER, []);
-add_if_nonexistent(Server, _Pid) ->
-    ErrMsg = <<" == estp_proj_sup: server ~p already started, skipping.">>,
-    lager:error(ErrMsg, [Server]).
+    supervisor:start_child(?SERVER, [Server, State]).
 
-delete(Proj) ->
-    Server = estp_project:server_name(Proj),
-    delete_if_exists(Server, whereis(Server)).
-
-delete_if_exists(Server, undefined) ->
-    ErrMsg = <<" == estp_proj_sup: tried to delete nonexistent child:~p">>,
-    lager:error(ErrMsg, [Server]);
-delete_if_exists(Server, Pid) ->
+delete_child(Server, Pid) ->
     lager:info(<<" == estp_proj_sup: delete child:~p">>, [Server]),
     ok = supervisor:terminate_child(?SERVER, Pid).
-
-add_projects([Proj|T]) ->
-    lager:debug(<<" == estp_proj_sup: starting child:~p">>,
-                [estp_project:server_name(Proj)]),
-    supervisor:start_child(?SERVER, [Proj]),
-    add_projects(T);
-add_projects([]) ->
-    ok.
